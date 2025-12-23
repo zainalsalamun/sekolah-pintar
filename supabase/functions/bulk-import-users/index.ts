@@ -37,8 +37,12 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-    
+    const supabasePublicKey = Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY')
+
+    if (!supabasePublicKey) {
+      throw new Error('Missing SUPABASE_PUBLISHABLE_KEY')
+    }
+
     // Verify the caller is authenticated
     const authHeader = req.headers.get('Authorization')
     console.log('Auth header present:', !!authHeader)
@@ -52,7 +56,7 @@ Deno.serve(async (req) => {
     }
 
     // Create a client with the user's token to validate
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+    const supabaseClient = createClient(supabaseUrl, supabasePublicKey, {
       global: {
         headers: { Authorization: authHeader }
       }
