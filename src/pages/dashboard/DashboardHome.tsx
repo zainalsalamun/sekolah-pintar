@@ -1,23 +1,64 @@
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Users, GraduationCap, BookOpen, Bell, TrendingUp, Calendar, CheckCircle, Clock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth-context';
+import { supabase } from '@/integrations/supabase/client';
 
-const statCards = [
-  { icon: Users, label: 'Total Siswa', value: '1,234', change: '+12%', color: 'primary' },
-  { icon: GraduationCap, label: 'Total Guru', value: '85', change: '+3%', color: 'accent' },
-  { icon: BookOpen, label: 'Total Kelas', value: '42', change: '0%', color: 'info' },
-  { icon: Bell, label: 'Pengumuman', value: '8', change: '+2', color: 'warning' },
-];
+interface DashboardStats {
+  totalSiswa: number;
+  totalGuru: number;
+  totalKelas: number;
+  totalPengumuman: number;
+}
 
-const recentAnnouncements = [
-  { title: 'Ujian Tengah Semester', category: 'akademik', date: '20 Des 2024' },
-  { title: 'Libur Natal dan Tahun Baru', category: 'libur', date: '18 Des 2024' },
-  { title: 'Rapat Wali Murid', category: 'umum', date: '15 Des 2024' },
-];
+interface Announcement {
+  id: string;
+  judul: string;
+  kategori: string;
+  tanggal_dibuat: string;
+}
 
 export default function DashboardHome() {
   const { role } = useAuth();
+  const [stats, setStats] = useState<DashboardStats>({
+    totalSiswa: 0,
+    totalGuru: 0,
+    totalKelas: 0,
+    totalPengumuman: 0,
+  });
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      // Fetch all counts in parallel
+      const [siswaRes, guruRes, kelasRes, pengumumanRes, announcementsRes] = await Promise.all([
+        supabase.from('siswa').select('id', { count: 'exact', head: true }),
+        supabase.from('guru').select('id', { count: 'exact', head: true }),
+        supabase.from('kelas').select('id', { count: 'exact', head: true }),
+        supabase.from('pengumuman').select('id', { count: 'exact', head: true }).eq('aktif', true),
+        supabase.from('pengumuman').select('id, judul, kategori, tanggal_dibuat').eq('aktif', true).order('tanggal_dibuat', { ascending: false }).limit(3),
+      ]);
+
+      setStats({
+        totalSiswa: siswaRes.count || 0,
+        totalGuru: guruRes.count || 0,
+        totalKelas: kelasRes.count || 0,
+        totalPengumuman: pengumumanRes.count || 0,
+      });
+
+      setAnnouncements(announcementsRes.data || []);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getRoleWelcome = () => {
     switch (role) {
@@ -28,6 +69,21 @@ export default function DashboardHome() {
       default: return 'Selamat datang';
     }
   };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+
+  const statCards = [
+    { icon: Users, label: 'Total Siswa', value: stats.totalSiswa.toString(), color: 'primary' },
+    { icon: GraduationCap, label: 'Total Guru', value: stats.totalGuru.toString(), color: 'accent' },
+    { icon: BookOpen, label: 'Total Kelas', value: stats.totalKelas.toString(), color: 'info' },
+    { icon: Bell, label: 'Pengumuman Aktif', value: stats.totalPengumuman.toString(), color: 'warning' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -50,10 +106,8 @@ export default function DashboardHome() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">{stat.label}</p>
-                    <p className="text-3xl font-bold mt-1">{stat.value}</p>
-                    <p className="text-xs text-success mt-1 flex items-center gap-1">
-                      <TrendingUp className="w-3 h-3" />
-                      {stat.change} dari bulan lalu
+                    <p className="text-3xl font-bold mt-1">
+                      {loading ? '...' : stat.value}
                     </p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -80,18 +134,24 @@ export default function DashboardHome() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {recentAnnouncements.map((item, index) => (
-                  <div key={index} className="flex items-start gap-4 p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                    <div className="w-2 h-2 rounded-full bg-primary mt-2" />
-                    <div className="flex-1">
-                      <p className="font-medium">{item.title}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="badge-status bg-primary/10 text-primary">{item.category}</span>
-                        <span className="text-xs text-muted-foreground">{item.date}</span>
+                {announcements.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Belum ada pengumuman
+                  </p>
+                ) : (
+                  announcements.map((item) => (
+                    <div key={item.id} className="flex items-start gap-4 p-3 rounded-lg hover:bg-muted/50 transition-colors">
+                      <div className="w-2 h-2 rounded-full bg-primary mt-2" />
+                      <div className="flex-1">
+                        <p className="font-medium">{item.judul}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="badge-status bg-primary/10 text-primary">{item.kategori}</span>
+                          <span className="text-xs text-muted-foreground">{formatDate(item.tanggal_dibuat)}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -112,15 +172,17 @@ export default function DashboardHome() {
                 <div className="flex items-center gap-4 p-3 rounded-lg bg-success/10">
                   <CheckCircle className="w-5 h-5 text-success" />
                   <div className="flex-1">
-                    <p className="font-medium">Absensi Terisi</p>
-                    <p className="text-sm text-muted-foreground">Kelas 7A - Matematika</p>
+                    <p className="font-medium">Sistem Siap</p>
+                    <p className="text-sm text-muted-foreground">Semua modul berfungsi normal</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4 p-3 rounded-lg bg-warning/10">
                   <Clock className="w-5 h-5 text-warning" />
                   <div className="flex-1">
-                    <p className="font-medium">Input Nilai UTS</p>
-                    <p className="text-sm text-muted-foreground">Deadline: 25 Des 2024</p>
+                    <p className="font-medium">Data Terbaru</p>
+                    <p className="text-sm text-muted-foreground">
+                      {stats.totalSiswa} siswa, {stats.totalGuru} guru terdaftar
+                    </p>
                   </div>
                 </div>
               </div>
