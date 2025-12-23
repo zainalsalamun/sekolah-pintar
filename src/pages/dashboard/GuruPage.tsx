@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Loader2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { PageHeader } from '@/components/ui/page-header';
@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
+import { BulkImportDialog } from '@/components/bulk-import/BulkImportDialog';
 
 const createGuruSchema = z.object({
   nama: z.string().min(2, 'Nama minimal 2 karakter').max(100),
@@ -37,6 +38,7 @@ export default function GuruPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [isCreateMode, setIsCreateMode] = useState(false);
   const [selectedGuru, setSelectedGuru] = useState<Guru | null>(null);
   const [formData, setFormData] = useState({
@@ -265,11 +267,24 @@ export default function GuruPage() {
         description="Kelola data guru sekolah"
         icon={Users}
         action={
-          <Button onClick={handleCreate}>
-            <Plus className="w-4 h-4 mr-2" />
-            Tambah Guru
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsBulkImportOpen(true)}>
+              <Upload className="w-4 h-4 mr-2" />
+              Bulk Import
+            </Button>
+            <Button onClick={handleCreate}>
+              <Plus className="w-4 h-4 mr-2" />
+              Tambah Guru
+            </Button>
+          </div>
         }
+      />
+      
+      <BulkImportDialog
+        open={isBulkImportOpen}
+        onOpenChange={setIsBulkImportOpen}
+        type="guru"
+        onSuccess={fetchGuru}
       />
 
       <Dialog open={isDialogOpen} onOpenChange={(open) => {
