@@ -107,15 +107,23 @@ export default function NilaiPage() {
   const fetchOptions = async () => {
     try {
       const [siswaRes, mapelRes, taRes] = await Promise.all([
-        supabase.from('siswa').select('id, nis, profiles:user_id(nama)'),
+        supabase.from('siswa').select('id, nis, user_id'),
         supabase.from('mata_pelajaran').select('id, nama_mapel').order('nama_mapel'),
         supabase.from('tahun_ajaran').select('id, nama').order('nama', { ascending: false }),
       ]);
 
       if (siswaRes.data) {
+        const userIds = siswaRes.data.map(s => s.user_id);
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, nama')
+          .in('id', userIds);
+
+        const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || []);
+
         setSiswaList(siswaRes.data.map(s => ({
           id: s.id,
-          nama: s.profiles?.nama || 'Tanpa Nama',
+          nama: profilesMap.get(s.user_id)?.nama || 'Tanpa Nama',
           nis: s.nis,
         })));
       }
