@@ -25,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
+import { BulkImportDialog } from '@/components/bulk-import/BulkImportDialog';
 
 const createOrangTuaSchema = z.object({
   nama: z.string().min(2, 'Nama minimal 2 karakter').max(100),
@@ -58,6 +59,7 @@ export default function OrangTuaPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [isCreateMode, setIsCreateMode] = useState(false);
   const [selectedOrangTua, setSelectedOrangTua] = useState<OrangTua | null>(null);
@@ -435,11 +437,24 @@ export default function OrangTuaPage() {
         description="Kelola data orang tua/wali murid"
         icon={Users2}
         action={
-          <Button onClick={handleCreate}>
-            <Plus className="w-4 h-4 mr-2" />
-            Tambah Orang Tua
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsBulkImportOpen(true)}>
+              <Upload className="w-4 h-4 mr-2" />
+              Bulk Import
+            </Button>
+            <Button onClick={handleCreate}>
+              <Plus className="w-4 h-4 mr-2" />
+              Tambah Orang Tua
+            </Button>
+          </div>
         }
+      />
+
+      <BulkImportDialog
+        open={isBulkImportOpen}
+        onOpenChange={setIsBulkImportOpen}
+        type="orang_tua"
+        onSuccess={fetchOrangTua}
       />
 
       {/* Create/Edit Dialog */}

@@ -9,7 +9,7 @@ interface UserData {
   nama: string
   email: string
   password: string
-  role: 'guru' | 'siswa'
+  role: 'guru' | 'siswa' | 'orang_tua'
   // Guru specific
   nip?: string
   // Siswa specific
@@ -17,6 +17,8 @@ interface UserData {
   kelas_id?: string
   tanggal_lahir?: string
   alamat?: string
+  // Orang tua specific
+  telepon?: string
 }
 
 interface ImportResult {
@@ -170,6 +172,23 @@ Deno.serve(async (req) => {
               success: false,
               email: userData.email,
               error: `User created but siswa record failed: ${siswaError.message}`
+            })
+            continue
+          }
+        } else if (userData.role === 'orang_tua') {
+          const { error: orangTuaError } = await supabaseAdmin
+            .from('orang_tua')
+            .insert({
+              user_id: userId,
+              telepon: userData.telepon || null,
+              alamat: userData.alamat || null
+            })
+
+          if (orangTuaError) {
+            results.push({
+              success: false,
+              email: userData.email,
+              error: `User created but orang_tua record failed: ${orangTuaError.message}`
             })
             continue
           }

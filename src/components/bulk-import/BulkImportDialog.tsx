@@ -14,7 +14,7 @@ import { toast } from "sonner";
 interface BulkImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  type: 'guru' | 'siswa';
+  type: 'guru' | 'siswa' | 'orang_tua';
   kelasList?: { id: string; nama_kelas: string }[];
   onSuccess: () => void;
 }
@@ -27,6 +27,8 @@ interface UserEntry {
   nip?: string;
   nis?: string;
   kelas_id?: string;
+  telepon?: string;
+  alamat?: string;
 }
 
 interface ImportResult {
@@ -51,7 +53,9 @@ const createEmptyEntry = (): UserEntry => ({
   password: generatePassword(),
   nip: '',
   nis: '',
-  kelas_id: ''
+  kelas_id: '',
+  telepon: '',
+  alamat: ''
 });
 
 export function BulkImportDialog({ open, onOpenChange, type, kelasList = [], onSuccess }: BulkImportDialogProps) {
@@ -111,6 +115,8 @@ export function BulkImportDialog({ open, onOpenChange, type, kelasList = [], onS
         if (header === 'password' && value) entry.password = value;
         if (header === 'nip') entry.nip = value;
         if (header === 'nis') entry.nis = value;
+        if (header === 'telepon' || header === 'phone') entry.telepon = value;
+        if (header === 'alamat' || header === 'address') entry.alamat = value;
       });
 
       if (entry.nama && entry.email) {
@@ -167,7 +173,8 @@ export function BulkImportDialog({ open, onOpenChange, type, kelasList = [], onS
         password: entry.password,
         role: type,
         ...(type === 'guru' ? { nip: entry.nip } : {}),
-        ...(type === 'siswa' ? { nis: entry.nis, kelas_id: entry.kelas_id || null } : {})
+        ...(type === 'siswa' ? { nis: entry.nis, kelas_id: entry.kelas_id || null } : {}),
+        ...(type === 'orang_tua' ? { telepon: entry.telepon, alamat: entry.alamat } : {})
       }));
 
       const response = await supabase.functions.invoke('bulk-import-users', {
@@ -195,12 +202,19 @@ export function BulkImportDialog({ open, onOpenChange, type, kelasList = [], onS
   };
 
   const downloadTemplate = () => {
-    const headers = type === 'guru' 
-      ? 'nama,email,password,nip'
-      : 'nama,email,password,nis';
-    const example = type === 'guru'
-      ? 'Budi Santoso,budi@example.com,password123,123456789'
-      : 'Siti Aminah,siti@example.com,password123,2024001';
+    let headers: string;
+    let example: string;
+    
+    if (type === 'guru') {
+      headers = 'nama,email,password,nip';
+      example = 'Budi Santoso,budi@example.com,password123,123456789';
+    } else if (type === 'siswa') {
+      headers = 'nama,email,password,nis';
+      example = 'Siti Aminah,siti@example.com,password123,2024001';
+    } else {
+      headers = 'nama,email,password,telepon,alamat';
+      example = 'Ahmad Wijaya,ahmad@example.com,password123,08123456789,Jl. Contoh No. 1';
+    }
     
     const content = `${headers}\n${example}`;
     const blob = new Blob([content], { type: 'text/csv' });
@@ -212,13 +226,29 @@ export function BulkImportDialog({ open, onOpenChange, type, kelasList = [], onS
     URL.revokeObjectURL(url);
   };
 
+  const getTypeLabel = () => {
+    switch (type) {
+      case 'guru': return 'Guru';
+      case 'siswa': return 'Siswa';
+      case 'orang_tua': return 'Orang Tua';
+    }
+  };
+
+  const getFieldLabel = () => {
+    switch (type) {
+      case 'guru': return 'nip';
+      case 'siswa': return 'nis';
+      case 'orang_tua': return 'telepon';
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Bulk Import {type === 'guru' ? 'Guru' : 'Siswa'}</DialogTitle>
+          <DialogTitle>Bulk Import {getTypeLabel()}</DialogTitle>
           <DialogDescription>
-            Import data {type === 'guru' ? 'guru' : 'siswa'} dari CSV atau input manual (maks. 50 per batch)
+            Import data {getTypeLabel().toLowerCase()} dari CSV atau input manual (maks. 50 per batch)
           </DialogDescription>
         </DialogHeader>
 
@@ -294,7 +324,8 @@ export function BulkImportDialog({ open, onOpenChange, type, kelasList = [], onS
                 </Button>
               </div>
               <p className="text-sm text-muted-foreground">
-                Format CSV: nama, email, password, {type === 'guru' ? 'nip' : 'nis'}
+                Format CSV: nama, email, password, {getFieldLabel()}
+                {type === 'orang_tua' && ', alamat'}
               </p>
             </TabsContent>
 
@@ -306,8 +337,11 @@ export function BulkImportDialog({ open, onOpenChange, type, kelasList = [], onS
                       <TableHead>Nama</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Password</TableHead>
-                      <TableHead>{type === 'guru' ? 'NIP' : 'NIS'}</TableHead>
+                      <TableHead>
+                        {type === 'guru' ? 'NIP' : type === 'siswa' ? 'NIS' : 'Telepon'}
+                      </TableHead>
                       {type === 'siswa' && <TableHead>Kelas</TableHead>}
+                      {type === 'orang_tua' && <TableHead>Alamat</TableHead>}
                       <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -341,9 +375,9 @@ export function BulkImportDialog({ open, onOpenChange, type, kelasList = [], onS
                         </TableCell>
                         <TableCell>
                           <Input
-                            placeholder={type === 'guru' ? 'NIP' : 'NIS'}
-                            value={type === 'guru' ? entry.nip : entry.nis}
-                            onChange={(e) => updateEntry(entry.id, type === 'guru' ? 'nip' : 'nis', e.target.value)}
+                            placeholder={type === 'guru' ? 'NIP' : type === 'siswa' ? 'NIS' : '08xxxxxxxxxx'}
+                            value={type === 'guru' ? entry.nip : type === 'siswa' ? entry.nis : entry.telepon}
+                            onChange={(e) => updateEntry(entry.id, type === 'guru' ? 'nip' : type === 'siswa' ? 'nis' : 'telepon', e.target.value)}
                             className="min-w-[120px]"
                           />
                         </TableCell>
@@ -364,6 +398,16 @@ export function BulkImportDialog({ open, onOpenChange, type, kelasList = [], onS
                                 ))}
                               </SelectContent>
                             </Select>
+                          </TableCell>
+                        )}
+                        {type === 'orang_tua' && (
+                          <TableCell>
+                            <Input
+                              placeholder="Alamat"
+                              value={entry.alamat || ''}
+                              onChange={(e) => updateEntry(entry.id, 'alamat', e.target.value)}
+                              className="min-w-[150px]"
+                            />
                           </TableCell>
                         )}
                         <TableCell>
@@ -397,7 +441,7 @@ export function BulkImportDialog({ open, onOpenChange, type, kelasList = [], onS
                 </Button>
                 <Button onClick={handleImport} disabled={isImporting}>
                   {isImporting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Import {type === 'guru' ? 'Guru' : 'Siswa'}
+                  Import {getTypeLabel()}
                 </Button>
               </div>
             </div>
