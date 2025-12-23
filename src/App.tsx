@@ -17,6 +17,7 @@ import JadwalPage from "./pages/dashboard/JadwalPage";
 import AbsensiPage from "./pages/dashboard/AbsensiPage";
 import NilaiPage from "./pages/dashboard/NilaiPage";
 import PengumumanPage from "./pages/dashboard/PengumumanPage";
+import TahunAjaranPage from "./pages/dashboard/TahunAjaranPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +43,7 @@ const App = () => (
               <Route path="absensi" element={<AbsensiPage />} />
               <Route path="nilai" element={<NilaiPage />} />
               <Route path="pengumuman" element={<PengumumanPage />} />
+              <Route path="tahun-ajaran" element={<TahunAjaranPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

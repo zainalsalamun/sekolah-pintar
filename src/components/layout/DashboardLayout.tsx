@@ -45,6 +45,7 @@ const navItems: NavItem[] = [
   { icon: Users, label: 'Data Guru', href: '/dashboard/guru', roles: ['admin'] },
   { icon: BookOpen, label: 'Kelas', href: '/dashboard/kelas', roles: ['admin'] },
   { icon: BookOpen, label: 'Mata Pelajaran', href: '/dashboard/mapel', roles: ['admin'] },
+  { icon: Calendar, label: 'Tahun Ajaran', href: '/dashboard/tahun-ajaran', roles: ['admin'] },
   { icon: Calendar, label: 'Jadwal', href: '/dashboard/jadwal', roles: ['admin', 'guru', 'siswa'] },
   { icon: ClipboardCheck, label: 'Absensi', href: '/dashboard/absensi', roles: ['admin', 'guru', 'siswa', 'orang_tua'] },
   { icon: FileText, label: 'Nilai', href: '/dashboard/nilai', roles: ['admin', 'guru', 'siswa', 'orang_tua'] },
