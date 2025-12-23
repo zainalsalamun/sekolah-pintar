@@ -1,1 +1,4 @@
 project_id = "okajkeaokqweailxeeam"
+
+[functions.bulk-import-users]
+verify_jwt = false
