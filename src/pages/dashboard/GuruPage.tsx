@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { PageHeader } from '@/components/ui/page-header';
@@ -15,6 +15,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { z } from 'zod';
+
+const createGuruSchema = z.object({
+  nama: z.string().min(2, 'Nama minimal 2 karakter').max(100),
+  email: z.string().email('Email tidak valid').max(255),
+  password: z.string().min(6, 'Password minimal 6 karakter'),
+  nip: z.string().max(50).optional(),
+});
 
 interface Guru {
   id: string;
@@ -27,11 +35,17 @@ interface Guru {
 export default function GuruPage() {
   const [guruList, setGuruList] = useState<Guru[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCreateMode, setIsCreateMode] = useState(false);
   const [selectedGuru, setSelectedGuru] = useState<Guru | null>(null);
   const [formData, setFormData] = useState({
+    nama: '',
+    email: '',
+    password: '',
     nip: '',
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -74,11 +88,72 @@ export default function GuruPage() {
     }
   };
 
+  const resetForm = () => {
+    setFormData({
+      nama: '',
+      email: '',
+      password: '',
+      nip: '',
+    });
+    setErrors({});
+    setSelectedGuru(null);
+    setIsCreateMode(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
+    setIsSaving(true);
     
     try {
-      if (selectedGuru) {
+      if (isCreateMode) {
+        // Validate form data
+        const result = createGuruSchema.safeParse(formData);
+        if (!result.success) {
+          const fieldErrors: Record<string, string> = {};
+          result.error.errors.forEach(err => {
+            if (err.path[0]) {
+              fieldErrors[err.path[0] as string] = err.message;
+            }
+          });
+          setErrors(fieldErrors);
+          setIsSaving(false);
+          return;
+        }
+
+        // Create user account
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            data: { nama: formData.nama },
+            emailRedirectTo: `${window.location.origin}/`,
+          },
+        });
+
+        if (authError) throw authError;
+        if (!authData.user) throw new Error('Gagal membuat akun pengguna');
+
+        // Assign role as guru
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .insert({ user_id: authData.user.id, role: 'guru' });
+
+        if (roleError) throw roleError;
+
+        // Create guru record
+        const { error: guruError } = await supabase
+          .from('guru')
+          .insert({
+            user_id: authData.user.id,
+            nip: formData.nip || null,
+          });
+
+        if (guruError) throw guruError;
+
+        toast({ title: 'Berhasil', description: 'Guru baru berhasil ditambahkan' });
+      } else if (selectedGuru) {
+        // Update existing guru
         const { error } = await supabase
           .from('guru')
           .update({ nip: formData.nip || null })
@@ -89,21 +164,43 @@ export default function GuruPage() {
       }
 
       setIsDialogOpen(false);
-      setSelectedGuru(null);
+      resetForm();
       fetchGuru();
     } catch (error: any) {
       console.error('Error saving guru:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Gagal menyimpan data guru',
-        variant: 'destructive',
-      });
+      if (error.message?.includes('already registered')) {
+        toast({
+          title: 'Error',
+          description: 'Email sudah terdaftar',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: error.message || 'Gagal menyimpan data guru',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setIsSaving(false);
     }
+  };
+
+  const handleCreate = () => {
+    resetForm();
+    setIsCreateMode(true);
+    setIsDialogOpen(true);
   };
 
   const handleEdit = (guru: Guru) => {
     setSelectedGuru(guru);
-    setFormData({ nip: guru.nip || '' });
+    setIsCreateMode(false);
+    setFormData({
+      nama: guru.profiles?.nama || '',
+      email: guru.profiles?.email || '',
+      password: '',
+      nip: guru.nip || '',
+    });
     setIsDialogOpen(true);
   };
 
@@ -167,28 +264,93 @@ export default function GuruPage() {
         title="Data Guru"
         description="Kelola data guru sekolah"
         icon={Users}
+        action={
+          <Button onClick={handleCreate}>
+            <Plus className="w-4 h-4 mr-2" />
+            Tambah Guru
+          </Button>
+        }
       />
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        setIsDialogOpen(open);
+        if (!open) resetForm();
+      }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Data Guru</DialogTitle>
-            <DialogDescription>Perbarui informasi guru</DialogDescription>
+            <DialogTitle>
+              {isCreateMode ? 'Tambah Guru Baru' : 'Edit Data Guru'}
+            </DialogTitle>
+            <DialogDescription>
+              {isCreateMode 
+                ? 'Isi form berikut untuk menambah guru baru' 
+                : 'Perbarui informasi guru'}
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {isCreateMode && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="nama">Nama Lengkap *</Label>
+                  <Input
+                    id="nama"
+                    value={formData.nama}
+                    onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
+                    placeholder="Masukkan nama lengkap"
+                    required
+                  />
+                  {errors.nama && <p className="text-sm text-destructive">{errors.nama}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="email@sekolah.com"
+                    required
+                  />
+                  {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password *</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="Minimal 6 karakter"
+                    required
+                  />
+                  {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+                </div>
+              </>
+            )}
             <div className="space-y-2">
               <Label htmlFor="nip">NIP</Label>
               <Input
                 id="nip"
                 value={formData.nip}
                 onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
+                placeholder="Nomor Induk Pegawai"
               />
+              {errors.nip && <p className="text-sm text-destructive">{errors.nip}</p>}
             </div>
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Batal
               </Button>
-              <Button type="submit">Simpan Perubahan</Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Menyimpan...
+                  </>
+                ) : (
+                  isCreateMode ? 'Tambah Guru' : 'Simpan Perubahan'
+                )}
+              </Button>
             </div>
           </form>
         </DialogContent>
