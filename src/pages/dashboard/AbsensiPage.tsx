@@ -123,15 +123,24 @@ export default function AbsensiPage() {
 
   const fetchSiswaByKelas = async (kelasId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data: siswaData, error } = await supabase
         .from('siswa')
-        .select('id, nis, profiles:user_id(nama)')
+        .select('id, nis, user_id')
         .eq('kelas_id', kelasId);
 
       if (error) throw error;
-      setSiswaList((data || []).map(s => ({
+
+      const userIds = siswaData?.map(s => s.user_id) || [];
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, nama')
+        .in('id', userIds);
+
+      const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || []);
+
+      setSiswaList((siswaData || []).map(s => ({
         id: s.id,
-        nama: s.profiles?.nama || 'Tanpa Nama',
+        nama: profilesMap.get(s.user_id)?.nama || 'Tanpa Nama',
         nis: s.nis,
       })));
     } catch (error) {

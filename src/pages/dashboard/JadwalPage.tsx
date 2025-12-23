@@ -108,15 +108,24 @@ export default function JadwalPage() {
       const [kelasRes, mapelRes, guruRes] = await Promise.all([
         supabase.from('kelas').select('id, nama_kelas').order('nama_kelas'),
         supabase.from('mata_pelajaran').select('id, nama_mapel').order('nama_mapel'),
-        supabase.from('guru').select('id, profiles:user_id(nama)'),
+        supabase.from('guru').select('id, user_id'),
       ]);
 
       if (kelasRes.data) setKelasList(kelasRes.data);
       if (mapelRes.data) setMapelList(mapelRes.data);
+      
       if (guruRes.data) {
+        const userIds = guruRes.data.map(g => g.user_id);
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, nama')
+          .in('id', userIds);
+
+        const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || []);
+
         setGuruList(guruRes.data.map(g => ({
           id: g.id,
-          nama: g.profiles?.nama || 'Tanpa Nama',
+          nama: profilesMap.get(g.user_id)?.nama || 'Tanpa Nama',
         })));
       }
     } catch (error) {

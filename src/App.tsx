@@ -8,6 +8,15 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import DashboardLayout from "./components/layout/DashboardLayout";
 import DashboardHome from "./pages/dashboard/DashboardHome";
+import PenggunaPage from "./pages/dashboard/PenggunaPage";
+import SiswaPage from "./pages/dashboard/SiswaPage";
+import GuruPage from "./pages/dashboard/GuruPage";
+import KelasPage from "./pages/dashboard/KelasPage";
+import MapelPage from "./pages/dashboard/MapelPage";
+import JadwalPage from "./pages/dashboard/JadwalPage";
+import AbsensiPage from "./pages/dashboard/AbsensiPage";
+import NilaiPage from "./pages/dashboard/NilaiPage";
+import PengumumanPage from "./pages/dashboard/PengumumanPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +33,15 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<DashboardLayout />}>
               <Route index element={<DashboardHome />} />
+              <Route path="pengguna" element={<PenggunaPage />} />
+              <Route path="siswa" element={<SiswaPage />} />
+              <Route path="guru" element={<GuruPage />} />
+              <Route path="kelas" element={<KelasPage />} />
+              <Route path="mapel" element={<MapelPage />} />
+              <Route path="jadwal" element={<JadwalPage />} />
+              <Route path="absensi" element={<AbsensiPage />} />
+              <Route path="nilai" element={<NilaiPage />} />
+              <Route path="pengumuman" element={<PengumumanPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
