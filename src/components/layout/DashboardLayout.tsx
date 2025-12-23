@@ -43,6 +43,7 @@ const navItems: NavItem[] = [
   { icon: Users, label: 'Pengguna', href: '/dashboard/pengguna', roles: ['admin'] },
   { icon: Users, label: 'Data Siswa', href: '/dashboard/siswa', roles: ['admin', 'guru'] },
   { icon: Users, label: 'Data Guru', href: '/dashboard/guru', roles: ['admin'] },
+  { icon: Users, label: 'Data Orang Tua', href: '/dashboard/orang-tua', roles: ['admin'] },
   { icon: BookOpen, label: 'Kelas', href: '/dashboard/kelas', roles: ['admin'] },
   { icon: BookOpen, label: 'Mata Pelajaran', href: '/dashboard/mapel', roles: ['admin'] },
   { icon: Calendar, label: 'Tahun Ajaran', href: '/dashboard/tahun-ajaran', roles: ['admin'] },
