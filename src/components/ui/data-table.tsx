@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChevronLeft, ChevronRight, Search, Loader2 } from "lucide-react";
-import { useState } from "react";
+import React, { useState } from "react";
 
 interface Column<T> {
   header: string;
@@ -27,15 +27,18 @@ interface DataTableProps<T> {
   pageSize?: number;
 }
 
-export function DataTable<T extends { id: string }>({
-  columns,
-  data,
-  searchPlaceholder = "Cari...",
-  searchKey,
-  isLoading = false,
-  emptyMessage = "Tidak ada data",
-  pageSize = 10,
-}: DataTableProps<T>) {
+function DataTableInner<T extends { id: string }>(
+  {
+    columns,
+    data,
+    searchPlaceholder = "Cari...",
+    searchKey,
+    isLoading = false,
+    emptyMessage = "Tidak ada data",
+    pageSize = 10,
+  }: DataTableProps<T>,
+  ref: React.ForwardedRef<HTMLDivElement>
+) {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -61,7 +64,7 @@ export function DataTable<T extends { id: string }>({
   };
 
   return (
-    <div className="space-y-4">
+    <div ref={ref} className="space-y-4">
       {searchKey && (
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -147,3 +150,7 @@ export function DataTable<T extends { id: string }>({
     </div>
   );
 }
+
+export const DataTable = React.forwardRef(DataTableInner) as <T extends { id: string }>(
+  props: DataTableProps<T> & { ref?: React.ForwardedRef<HTMLDivElement> }
+) => React.ReactElement;
