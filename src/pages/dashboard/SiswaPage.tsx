@@ -48,6 +48,7 @@ interface Siswa {
   created_at: string | null;
   profiles?: { nama: string; email: string } | null;
   kelas?: { nama_kelas: string } | null;
+  orang_tua?: { id: string; profiles?: { nama: string } | null } | null;
 }
 
 interface Kelas {
@@ -55,9 +56,16 @@ interface Kelas {
   nama_kelas: string;
 }
 
+interface OrangTua {
+  id: string;
+  user_id: string;
+  nama: string;
+}
+
 export default function SiswaPage() {
   const [siswaList, setSiswaList] = useState<Siswa[]>([]);
   const [kelasList, setKelasList] = useState<Kelas[]>([]);
+  const [orangTuaList, setOrangTuaList] = useState<OrangTua[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -70,6 +78,7 @@ export default function SiswaPage() {
     password: '',
     nis: '',
     kelas_id: '',
+    orang_tua_id: '',
     tanggal_lahir: '',
     alamat: '',
   });
@@ -80,6 +89,7 @@ export default function SiswaPage() {
   useEffect(() => {
     fetchSiswa();
     fetchKelas();
+    fetchOrangTua();
   }, []);
 
   const fetchSiswa = async () => {
@@ -132,6 +142,35 @@ export default function SiswaPage() {
     }
   };
 
+  const fetchOrangTua = async () => {
+    try {
+      const { data: orangTuaData, error } = await supabase
+        .from('orang_tua')
+        .select('id, user_id')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const userIds = orangTuaData?.map(ot => ot.user_id) || [];
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, nama')
+        .in('id', userIds);
+
+      const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || []);
+      
+      const enrichedData = (orangTuaData || []).map(ot => ({
+        id: ot.id,
+        user_id: ot.user_id,
+        nama: profilesMap.get(ot.user_id)?.nama || 'Unknown',
+      }));
+
+      setOrangTuaList(enrichedData);
+    } catch (error) {
+      console.error('Error fetching orang tua:', error);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       nama: '',
@@ -139,6 +178,7 @@ export default function SiswaPage() {
       password: '',
       nis: '',
       kelas_id: '',
+      orang_tua_id: '',
       tanggal_lahir: '',
       alamat: '',
     });
@@ -195,6 +235,7 @@ export default function SiswaPage() {
             user_id: authData.user.id,
             nis: formData.nis,
             kelas_id: formData.kelas_id || null,
+            orang_tua_id: formData.orang_tua_id || null,
             tanggal_lahir: formData.tanggal_lahir || null,
             alamat: formData.alamat || null,
           });
@@ -209,6 +250,7 @@ export default function SiswaPage() {
           .update({
             nis: formData.nis,
             kelas_id: formData.kelas_id || null,
+            orang_tua_id: formData.orang_tua_id || null,
             tanggal_lahir: formData.tanggal_lahir || null,
             alamat: formData.alamat || null,
           })
@@ -256,6 +298,7 @@ export default function SiswaPage() {
       password: '',
       nis: siswa.nis,
       kelas_id: siswa.kelas_id || '',
+      orang_tua_id: siswa.orang_tua_id || '',
       tanggal_lahir: siswa.tanggal_lahir || '',
       alamat: siswa.alamat || '',
     });
@@ -284,6 +327,12 @@ export default function SiswaPage() {
     }
   };
 
+  const getOrangTuaNama = (orang_tua_id: string | null) => {
+    if (!orang_tua_id) return '-';
+    const orangTua = orangTuaList.find(ot => ot.id === orang_tua_id);
+    return orangTua?.nama || '-';
+  };
+
   const columns = [
     {
       header: 'NIS',
@@ -301,6 +350,12 @@ export default function SiswaPage() {
       header: 'Kelas',
       accessor: (row: Siswa) => (
         <Badge variant="outline">{row.kelas?.nama_kelas || '-'}</Badge>
+      ),
+    },
+    {
+      header: 'Orang Tua',
+      accessor: (row: Siswa) => (
+        <Badge variant="secondary">{getOrangTuaNama(row.orang_tua_id)}</Badge>
       ),
     },
     {
@@ -433,6 +488,25 @@ export default function SiswaPage() {
                   {kelasList.map((kelas) => (
                     <SelectItem key={kelas.id} value={kelas.id}>
                       {kelas.nama_kelas}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="orang_tua">Orang Tua / Wali</Label>
+              <Select
+                value={formData.orang_tua_id}
+                onValueChange={(value) => setFormData({ ...formData, orang_tua_id: value === 'none' ? '' : value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih orang tua" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">-- Tidak ada --</SelectItem>
+                  {orangTuaList.map((orangTua) => (
+                    <SelectItem key={orangTua.id} value={orangTua.id}>
+                      {orangTua.nama}
                     </SelectItem>
                   ))}
                 </SelectContent>
