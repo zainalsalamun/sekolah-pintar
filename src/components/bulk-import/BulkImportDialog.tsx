@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, Plus, Trash2, FileSpreadsheet, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Upload, Plus, Trash2, FileSpreadsheet, CheckCircle, XCircle, Loader2, Wand2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -46,6 +46,15 @@ const generatePassword = () => {
   return password;
 };
 
+const generateEmailFromName = (nama: string, index: number): string => {
+  const slug = nama
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim()
+    .replace(/\s+/g, '.');
+  return slug ? `${slug}${index > 0 ? index : ''}@sekolah.local` : '';
+};
+
 const createEmptyEntry = (): UserEntry => ({
   id: crypto.randomUUID(),
   nama: '',
@@ -57,6 +66,30 @@ const createEmptyEntry = (): UserEntry => ({
   telepon: '',
   alamat: ''
 });
+
+const SAMPLE_DATA = {
+  guru: [
+    { nama: 'Ahmad Fauzi', nip: '198501152010011001' },
+    { nama: 'Siti Nurhaliza', nip: '198703202012022002' },
+    { nama: 'Budi Hartono', nip: '199005102015031003' },
+    { nama: 'Dewi Kartika', nip: '198812252011012004' },
+    { nama: 'Eko Prasetyo', nip: '199107302016041005' },
+  ],
+  siswa: [
+    { nama: 'Rafi Ahmad', nis: '2024001' },
+    { nama: 'Aisyah Putri', nis: '2024002' },
+    { nama: 'Dimas Pratama', nis: '2024003' },
+    { nama: 'Nabila Azzahra', nis: '2024004' },
+    { nama: 'Fajar Ramadhan', nis: '2024005' },
+  ],
+  orang_tua: [
+    { nama: 'Hendra Wijaya', telepon: '081234567001', alamat: 'Jl. Merdeka No. 10' },
+    { nama: 'Ratna Sari', telepon: '081234567002', alamat: 'Jl. Sudirman No. 25' },
+    { nama: 'Agus Setiawan', telepon: '081234567003', alamat: 'Jl. Gatot Subroto No. 5' },
+    { nama: 'Linda Permata', telepon: '081234567004', alamat: 'Jl. Ahmad Yani No. 15' },
+    { nama: 'Bambang Suprapto', telepon: '081234567005', alamat: 'Jl. Diponegoro No. 8' },
+  ],
+};
 
 export function BulkImportDialog({ open, onOpenChange, type, kelasList = [], onSuccess }: BulkImportDialogProps) {
   const [entries, setEntries] = useState<UserEntry[]>([createEmptyEntry()]);
@@ -89,7 +122,36 @@ export function BulkImportDialog({ open, onOpenChange, type, kelasList = [], onS
   };
 
   const updateEntry = (id: string, field: keyof UserEntry, value: string) => {
-    setEntries(entries.map(e => e.id === id ? { ...e, [field]: value } : e));
+    setEntries(entries.map(e => {
+      if (e.id !== id) return e;
+      
+      const updated = { ...e, [field]: value };
+      
+      // Auto-generate email when nama changes
+      if (field === 'nama' && value && !e.email) {
+        const index = entries.findIndex(entry => entry.id === id);
+        updated.email = generateEmailFromName(value, index);
+      }
+      
+      return updated;
+    }));
+  };
+
+  const fillSampleData = () => {
+    const samples = SAMPLE_DATA[type];
+    const sampleEntries: UserEntry[] = samples.map((sample, index) => ({
+      id: crypto.randomUUID(),
+      nama: sample.nama,
+      email: generateEmailFromName(sample.nama, index),
+      password: generatePassword(),
+      nip: 'nip' in sample ? sample.nip : '',
+      nis: 'nis' in sample ? sample.nis : '',
+      kelas_id: '',
+      telepon: 'telepon' in sample ? sample.telepon : '',
+      alamat: 'alamat' in sample ? sample.alamat : '',
+    }));
+    setEntries(sampleEntries);
+    toast.success(`${sampleEntries.length} data sample berhasil dimuat`);
   };
 
   const parseCSV = (content: string): UserEntry[] => {
@@ -425,10 +487,16 @@ export function BulkImportDialog({ open, onOpenChange, type, kelasList = [], onS
                   </TableBody>
                 </Table>
               </div>
-              <Button variant="outline" onClick={addEntry} disabled={entries.length >= 50}>
-                <Plus className="h-4 w-4 mr-2" />
-                Tambah Baris
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={fillSampleData}>
+                  <Wand2 className="h-4 w-4 mr-2" />
+                  Isi Data Sample
+                </Button>
+                <Button variant="outline" onClick={addEntry} disabled={entries.length >= 50}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Tambah Baris
+                </Button>
+              </div>
             </TabsContent>
 
             <div className="flex justify-between items-center pt-4 border-t">
