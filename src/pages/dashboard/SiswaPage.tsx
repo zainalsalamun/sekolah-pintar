@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/ui/data-table';
@@ -25,6 +25,17 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth-context';
+import { z } from 'zod';
+
+const createSiswaSchema = z.object({
+  nama: z.string().min(2, 'Nama minimal 2 karakter').max(100),
+  email: z.string().email('Email tidak valid').max(255),
+  password: z.string().min(6, 'Password minimal 6 karakter'),
+  nis: z.string().min(1, 'NIS wajib diisi').max(50),
+  kelas_id: z.string().optional(),
+  tanggal_lahir: z.string().optional(),
+  alamat: z.string().max(500).optional(),
+});
 
 interface Siswa {
   id: string;
@@ -48,14 +59,20 @@ export default function SiswaPage() {
   const [siswaList, setSiswaList] = useState<Siswa[]>([]);
   const [kelasList, setKelasList] = useState<Kelas[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCreateMode, setIsCreateMode] = useState(false);
   const [selectedSiswa, setSelectedSiswa] = useState<Siswa | null>(null);
   const [formData, setFormData] = useState({
+    nama: '',
+    email: '',
+    password: '',
     nis: '',
     kelas_id: '',
     tanggal_lahir: '',
     alamat: '',
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
   const { role } = useAuth();
 
@@ -74,7 +91,6 @@ export default function SiswaPage() {
 
       if (error) throw error;
 
-      // Fetch profiles separately
       const userIds = siswaData?.map(s => s.user_id) || [];
       const { data: profilesData } = await supabase
         .from('profiles')
@@ -115,11 +131,78 @@ export default function SiswaPage() {
     }
   };
 
+  const resetForm = () => {
+    setFormData({
+      nama: '',
+      email: '',
+      password: '',
+      nis: '',
+      kelas_id: '',
+      tanggal_lahir: '',
+      alamat: '',
+    });
+    setErrors({});
+    setSelectedSiswa(null);
+    setIsCreateMode(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
+    setIsSaving(true);
     
     try {
-      if (selectedSiswa) {
+      if (isCreateMode) {
+        // Validate form data
+        const result = createSiswaSchema.safeParse(formData);
+        if (!result.success) {
+          const fieldErrors: Record<string, string> = {};
+          result.error.errors.forEach(err => {
+            if (err.path[0]) {
+              fieldErrors[err.path[0] as string] = err.message;
+            }
+          });
+          setErrors(fieldErrors);
+          setIsSaving(false);
+          return;
+        }
+
+        // Create user account
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            data: { nama: formData.nama },
+            emailRedirectTo: `${window.location.origin}/`,
+          },
+        });
+
+        if (authError) throw authError;
+        if (!authData.user) throw new Error('Gagal membuat akun pengguna');
+
+        // Assign role as siswa
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .insert({ user_id: authData.user.id, role: 'siswa' });
+
+        if (roleError) throw roleError;
+
+        // Create siswa record
+        const { error: siswaError } = await supabase
+          .from('siswa')
+          .insert({
+            user_id: authData.user.id,
+            nis: formData.nis,
+            kelas_id: formData.kelas_id || null,
+            tanggal_lahir: formData.tanggal_lahir || null,
+            alamat: formData.alamat || null,
+          });
+
+        if (siswaError) throw siswaError;
+
+        toast({ title: 'Berhasil', description: 'Siswa baru berhasil ditambahkan' });
+      } else if (selectedSiswa) {
+        // Update existing siswa
         const { error } = await supabase
           .from('siswa')
           .update({
@@ -135,21 +218,41 @@ export default function SiswaPage() {
       }
 
       setIsDialogOpen(false);
-      setSelectedSiswa(null);
+      resetForm();
       fetchSiswa();
     } catch (error: any) {
       console.error('Error saving siswa:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Gagal menyimpan data siswa',
-        variant: 'destructive',
-      });
+      if (error.message?.includes('already registered')) {
+        toast({
+          title: 'Error',
+          description: 'Email sudah terdaftar',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: error.message || 'Gagal menyimpan data siswa',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setIsSaving(false);
     }
+  };
+
+  const handleCreate = () => {
+    resetForm();
+    setIsCreateMode(true);
+    setIsDialogOpen(true);
   };
 
   const handleEdit = (siswa: Siswa) => {
     setSelectedSiswa(siswa);
+    setIsCreateMode(false);
     setFormData({
+      nama: siswa.profiles?.nama || '',
+      email: siswa.profiles?.email || '',
+      password: '',
       nis: siswa.nis,
       kelas_id: siswa.kelas_id || '',
       tanggal_lahir: siswa.tanggal_lahir || '',
@@ -228,23 +331,79 @@ export default function SiswaPage() {
         title="Data Siswa"
         description="Kelola data siswa sekolah"
         icon={Users}
+        action={role === 'admin' && (
+          <Button onClick={handleCreate}>
+            <Plus className="w-4 h-4 mr-2" />
+            Tambah Siswa
+          </Button>
+        )}
       />
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        setIsDialogOpen(open);
+        if (!open) resetForm();
+      }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Edit Data Siswa</DialogTitle>
-            <DialogDescription>Perbarui informasi siswa</DialogDescription>
+            <DialogTitle>
+              {isCreateMode ? 'Tambah Siswa Baru' : 'Edit Data Siswa'}
+            </DialogTitle>
+            <DialogDescription>
+              {isCreateMode 
+                ? 'Isi form berikut untuk menambah siswa baru' 
+                : 'Perbarui informasi siswa'}
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {isCreateMode && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="nama">Nama Lengkap *</Label>
+                  <Input
+                    id="nama"
+                    value={formData.nama}
+                    onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
+                    placeholder="Masukkan nama lengkap"
+                    required
+                  />
+                  {errors.nama && <p className="text-sm text-destructive">{errors.nama}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="email@sekolah.com"
+                    required
+                  />
+                  {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password *</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="Minimal 6 karakter"
+                    required
+                  />
+                  {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+                </div>
+              </>
+            )}
             <div className="space-y-2">
-              <Label htmlFor="nis">NIS</Label>
+              <Label htmlFor="nis">NIS *</Label>
               <Input
                 id="nis"
                 value={formData.nis}
                 onChange={(e) => setFormData({ ...formData, nis: e.target.value })}
+                placeholder="Nomor Induk Siswa"
                 required
               />
+              {errors.nis && <p className="text-sm text-destructive">{errors.nis}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="kelas">Kelas</Label>
@@ -279,13 +438,23 @@ export default function SiswaPage() {
                 id="alamat"
                 value={formData.alamat}
                 onChange={(e) => setFormData({ ...formData, alamat: e.target.value })}
+                placeholder="Alamat lengkap"
               />
             </div>
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Batal
               </Button>
-              <Button type="submit">Simpan Perubahan</Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Menyimpan...
+                  </>
+                ) : (
+                  isCreateMode ? 'Tambah Siswa' : 'Simpan Perubahan'
+                )}
+              </Button>
             </div>
           </form>
         </DialogContent>
