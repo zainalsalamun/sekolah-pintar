@@ -17,7 +17,7 @@ interface Column<T> {
   className?: string;
 }
 
-interface DataTableProps<T> {
+export interface DataTableProps<T> {
   columns: Column<T>[];
   data: T[];
   searchPlaceholder?: string;
@@ -27,7 +27,7 @@ interface DataTableProps<T> {
   pageSize?: number;
 }
 
-function DataTableInner<T extends { id: string }>(
+export const DataTable = React.forwardRef<HTMLDivElement, DataTableProps<any>>(function DataTable(
   {
     columns,
     data,
@@ -36,15 +36,15 @@ function DataTableInner<T extends { id: string }>(
     isLoading = false,
     emptyMessage = "Tidak ada data",
     pageSize = 10,
-  }: DataTableProps<T>,
-  ref: React.ForwardedRef<HTMLDivElement>
+  },
+  ref
 ) {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
   const filteredData = searchKey
-    ? data.filter((row) => {
-        const value = row[searchKey];
+    ? data.filter((row: any) => {
+        const value = row?.[searchKey as any];
         if (typeof value === "string") {
           return value.toLowerCase().includes(search.toLowerCase());
         }
@@ -56,7 +56,7 @@ function DataTableInner<T extends { id: string }>(
   const startIndex = (currentPage - 1) * pageSize;
   const paginatedData = filteredData.slice(startIndex, startIndex + pageSize);
 
-  const getCellValue = (row: T, accessor: Column<T>["accessor"]) => {
+  const getCellValue = (row: any, accessor: Column<any>["accessor"]) => {
     if (typeof accessor === "function") {
       return accessor(row);
     }
@@ -105,7 +105,7 @@ function DataTableInner<T extends { id: string }>(
                 </TableCell>
               </TableRow>
             ) : (
-              paginatedData.map((row) => (
+              paginatedData.map((row: any) => (
                 <TableRow key={row.id} className="hover:bg-muted/30 transition-colors">
                   {columns.map((column, index) => (
                     <TableCell key={index} className={column.className}>
@@ -149,8 +149,7 @@ function DataTableInner<T extends { id: string }>(
       )}
     </div>
   );
-}
+});
 
-export const DataTable = React.forwardRef(DataTableInner) as <T extends { id: string }>(
-  props: DataTableProps<T> & { ref?: React.ForwardedRef<HTMLDivElement> }
-) => React.ReactElement;
+DataTable.displayName = "DataTable";
+
